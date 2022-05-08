@@ -10,214 +10,234 @@ import (
 	"sync"
 )
 
-
 type MapItems []*MapItem
 type MapItem struct {
-	key string
+	key   string
 	value interface{}
 }
-func(this *MapItem) String() string{
+
+func (this *MapItem) String() string {
 	return this.key
 }
+
 //把sync.map  转为 自定义切片
-func convertToMapItems(m sync.Map) MapItems{
-	items:=make(MapItems,0)
+func convertToMapItems(m sync.Map) MapItems {
+	items := make(MapItems, 0)
 	m.Range(func(key, value interface{}) bool {
-		items=append(items,&MapItem{key:key.(string),value:value})
+		items = append(items, &MapItem{key: key.(string), value: value})
 		return true
 	})
 	return items
 }
-func(this MapItems) Len() int{
+func (this MapItems) Len() int {
 	return len(this)
 }
-func(this MapItems) Less(i, j int) bool{
-	return this[i].key<this[j].key
+func (this MapItems) Less(i, j int) bool {
+	return this[i].key < this[j].key
 }
-func(this MapItems) Swap(i, j int){
-	this[i],this[j]=this[j],this[i]
+func (this MapItems) Swap(i, j int) {
+	this[i], this[j] = this[j], this[i]
 }
-
-
 
 //对deployments的集合进行定义
 type DeploymentMap struct {
-	data sync.Map  // [key string] []*v1.Deployment    key=>namespace
+	data sync.Map // [key string] []*v1.Deployment    key=>namespace
 }
-//添加
-func(this *DeploymentMap) Add(dep *v1.Deployment){
 
-	if list,ok:=this.data.Load(dep.Namespace);ok{
-		list=append(list.([]*v1.Deployment),dep)
-		this.data.Store(dep.Namespace,list)
-	}else{
-		this.data.Store(dep.Namespace,[]*v1.Deployment{dep})
+//添加
+func (this *DeploymentMap) Add(dep *v1.Deployment) {
+
+	if list, ok := this.data.Load(dep.Namespace); ok {
+		list = append(list.([]*v1.Deployment), dep)
+		this.data.Store(dep.Namespace, list)
+	} else {
+		this.data.Store(dep.Namespace, []*v1.Deployment{dep})
 	}
 }
+
 //更新
-func(this *DeploymentMap) Update(dep *v1.Deployment) error {
-	if list,ok:=this.data.Load(dep.Namespace);ok{
-		for i,range_dep:=range list.([]*v1.Deployment){
-			if range_dep.Name==dep.Name{
-				list.([]*v1.Deployment)[i]=dep
+func (this *DeploymentMap) Update(dep *v1.Deployment) error {
+	if list, ok := this.data.Load(dep.Namespace); ok {
+		for i, range_dep := range list.([]*v1.Deployment) {
+			if range_dep.Name == dep.Name {
+				list.([]*v1.Deployment)[i] = dep
 			}
 		}
 		return nil
 	}
-	return fmt.Errorf("deployment-%s not found",dep.Name)
+	return fmt.Errorf("deployment-%s not found", dep.Name)
 }
+
 // 删除
-func(this *DeploymentMap) Delete(dep *v1.Deployment){
-	if list,ok:=this.data.Load(dep.Namespace);ok{
-		for i,range_dep:=range list.([]*v1.Deployment){
-			if range_dep.Name==dep.Name{
-				newList:= append(list.([]*v1.Deployment)[:i], list.([]*v1.Deployment)[i+1:]...)
-				this.data.Store(dep.Namespace,newList)
+func (this *DeploymentMap) Delete(dep *v1.Deployment) {
+	if list, ok := this.data.Load(dep.Namespace); ok {
+		for i, range_dep := range list.([]*v1.Deployment) {
+			if range_dep.Name == dep.Name {
+				newList := append(list.([]*v1.Deployment)[:i], list.([]*v1.Deployment)[i+1:]...)
+				this.data.Store(dep.Namespace, newList)
 				break
 			}
 		}
 	}
 }
-func(this *DeploymentMap) ListByNS(ns string) ([]*v1.Deployment,error){
-	if list,ok:=this.data.Load(ns);ok {
-		 return  list.([]*v1.Deployment),nil
+func (this *DeploymentMap) ListByNS(ns string) ([]*v1.Deployment, error) {
+	if list, ok := this.data.Load(ns); ok {
+		return list.([]*v1.Deployment), nil
 	}
-	return nil,fmt.Errorf("record not found")
+	return nil, fmt.Errorf("record not found")
 }
-func(this *DeploymentMap) GetDeployment(ns string,depname string) (*v1.Deployment,error){
-	if list,ok:=this.data.Load(ns);ok {
-		for _,item:=range list.([]*v1.Deployment){
-			if item.Name==depname{
-				return item,nil
+func (this *DeploymentMap) GetDeployment(ns string, depname string) (*v1.Deployment, error) {
+	if list, ok := this.data.Load(ns); ok {
+		for _, item := range list.([]*v1.Deployment) {
+			if item.Name == depname {
+				return item, nil
 			}
 		}
 	}
-	return nil,fmt.Errorf("record not found")
+	return nil, fmt.Errorf("record not found")
 }
-
 
 type CoreV1Pods []*corev1.Pod
-func(this CoreV1Pods) Len() int{
+
+func (this CoreV1Pods) Len() int {
 	return len(this)
 }
-func(this CoreV1Pods) Less(i, j int) bool{
+func (this CoreV1Pods) Less(i, j int) bool {
 	//根据时间排序    正排序
 	return this[i].CreationTimestamp.Time.Before(this[j].CreationTimestamp.Time)
 }
-func(this CoreV1Pods) Swap(i, j int){
-	this[i],this[j]=this[j],this[i]
+func (this CoreV1Pods) Swap(i, j int) {
+	this[i], this[j] = this[j], this[i]
 }
+
 // 保存Pod集合
 type PodMapStruct struct {
-	data sync.Map  // [key string] []*v1.Pod    key=>namespace
+	data sync.Map // [key string] []*v1.Pod    key=>namespace
 }
-func(this *PodMapStruct) ListByNs(ns string) []*corev1.Pod{
-	if list,ok:=this.data.Load(ns);ok{
-		 ret:=list.([]*corev1.Pod)
-		 sort.Sort(CoreV1Pods(ret))//排序
-		 return ret
+
+func (this *PodMapStruct) ListByNs(ns string) []*corev1.Pod {
+	if list, ok := this.data.Load(ns); ok {
+		ret := list.([]*corev1.Pod)
+		sort.Sort(CoreV1Pods(ret)) //排序
+		return ret
 	}
 	return nil
 }
-func(this *PodMapStruct) Get(ns string,podName string) *corev1.Pod{
-	if list,ok:=this.data.Load(ns);ok{
-		for _,pod:=range list.([]*corev1.Pod){
-			if pod.Name==podName{
+func (this *PodMapStruct) Get(ns string, podName string) *corev1.Pod {
+	if list, ok := this.data.Load(ns); ok {
+		for _, pod := range list.([]*corev1.Pod) {
+			if pod.Name == podName {
 				return pod
 			}
 		}
 	}
 	return nil
 }
-func(this *PodMapStruct) Add(pod *corev1.Pod){
-	if list,ok:=this.data.Load(pod.Namespace);ok{
-		list=append(list.([]*corev1.Pod),pod)
-		this.data.Store(pod.Namespace,list)
-	}else{
-		this.data.Store(pod.Namespace,[]*corev1.Pod{pod})
+func (this *PodMapStruct) Add(pod *corev1.Pod) {
+	if list, ok := this.data.Load(pod.Namespace); ok {
+		list = append(list.([]*corev1.Pod), pod)
+		this.data.Store(pod.Namespace, list)
+	} else {
+		this.data.Store(pod.Namespace, []*corev1.Pod{pod})
 	}
 }
-func(this *PodMapStruct) Update(pod *corev1.Pod) error {
-	if list,ok:=this.data.Load(pod.Namespace);ok{
-		for i,range_pod:=range list.([]*corev1.Pod){
-			if range_pod.Name==pod.Name{
-				list.([]*corev1.Pod)[i]=pod
+func (this *PodMapStruct) Update(pod *corev1.Pod) error {
+	if list, ok := this.data.Load(pod.Namespace); ok {
+		for i, range_pod := range list.([]*corev1.Pod) {
+			if range_pod.Name == pod.Name {
+				list.([]*corev1.Pod)[i] = pod
 			}
 		}
 		return nil
 	}
-	return fmt.Errorf("Pod-%s not found",pod.Name)
+	return fmt.Errorf("Pod-%s not found", pod.Name)
 }
-func(this *PodMapStruct) Delete(pod *corev1.Pod){
-	if list,ok:=this.data.Load(pod.Namespace);ok{
-		for i,range_pod:=range list.([]*corev1.Pod){
-			if range_pod.Name==pod.Name{
-				newList:= append(list.([]*corev1.Pod)[:i], list.([]*corev1.Pod)[i+1:]...)
-				this.data.Store(pod.Namespace,newList)
+func (this *PodMapStruct) Delete(pod *corev1.Pod) {
+	if list, ok := this.data.Load(pod.Namespace); ok {
+		for i, range_pod := range list.([]*corev1.Pod) {
+			if range_pod.Name == pod.Name {
+				newList := append(list.([]*corev1.Pod)[:i], list.([]*corev1.Pod)[i+1:]...)
+				this.data.Store(pod.Namespace, newList)
 				break
 			}
 		}
 	}
 }
+
 //根据标签获取 POD列表
-func(this *PodMapStruct) ListByLabels(ns string,labels []map[string]string) ([]*corev1.Pod,error){
-	ret:=make([]*corev1.Pod,0)
-	if list,ok:=this.data.Load(ns);ok {
-		for _,pod:=range list.([]*corev1.Pod){
-			for _,label:=range labels{
-				if reflect.DeepEqual(pod.Labels,label){  //标签完全匹配
-					ret=append(ret,pod)
+func (this *PodMapStruct) ListByLabels(ns string, labels []map[string]string) ([]*corev1.Pod, error) {
+	ret := make([]*corev1.Pod, 0)
+	if list, ok := this.data.Load(ns); ok {
+		for _, pod := range list.([]*corev1.Pod) {
+			for _, label := range labels {
+				if reflect.DeepEqual(pod.Labels, label) { //标签完全匹配
+					ret = append(ret, pod)
 				}
 			}
 		}
-		return ret,nil
+		return ret, nil
 	}
-	return nil,fmt.Errorf("pods not found ")
+	return nil, fmt.Errorf("pods not found ")
 }
-func(this *PodMapStruct) DEBUG_ListByNS(ns string) ([]*corev1.Pod){
-	ret:=make([]*corev1.Pod,0)
-	if list,ok:=this.data.Load(ns);ok {
-		for _,pod:=range list.([]*corev1.Pod){
-			ret=append(ret,pod)
+func (this *PodMapStruct) DEBUG_ListByNS(ns string) []*corev1.Pod {
+	ret := make([]*corev1.Pod, 0)
+	if list, ok := this.data.Load(ns); ok {
+		for _, pod := range list.([]*corev1.Pod) {
+			ret = append(ret, pod)
 		}
 
 	}
 	return ret
 }
 
+//根据节点名称 获取pods数量
+func (this *PodMapStruct) GetNum(nodeName string) (num int) {
+	this.data.Range(func(key, value interface{}) bool {
+		list := value.([]*corev1.Pod)
+		for _, pod := range list {
+			if pod.Spec.NodeName == nodeName {
+				num++
+			}
+		}
+		return true
+	})
+	return
+}
 
 // namespace相关
 type NsMapStruct struct {
-	data sync.Map  // [key string] []*corev1.Namespace    key=>namespace的名称
+	data sync.Map // [key string] []*corev1.Namespace    key=>namespace的名称
 }
-func(this *NsMapStruct) Get(ns string) *corev1.Namespace{
-	if item,ok:=this.data.Load(ns);ok{
-		 return item.(*corev1.Namespace)
+
+func (this *NsMapStruct) Get(ns string) *corev1.Namespace {
+	if item, ok := this.data.Load(ns); ok {
+		return item.(*corev1.Namespace)
 	}
 	return nil
 }
-func(this *NsMapStruct) Add(ns *corev1.Namespace){
-	this.data.Store(ns.Name,ns)
+func (this *NsMapStruct) Add(ns *corev1.Namespace) {
+	this.data.Store(ns.Name, ns)
 }
-func(this *NsMapStruct) Update(ns *corev1.Namespace) {
-	this.data.Store(ns.Name,ns)
+func (this *NsMapStruct) Update(ns *corev1.Namespace) {
+	this.data.Store(ns.Name, ns)
 }
-func(this *NsMapStruct) Delete(ns *corev1.Namespace){
+func (this *NsMapStruct) Delete(ns *corev1.Namespace) {
 	this.data.Delete(ns.Name)
 }
-//显示所有的 namespace
-func(this *NsMapStruct) ListAll()[]*models.NsModel{
 
-	 //this.data.Range(func(key, value interface{}) bool {
-		//ret=append(ret,&models.NsModel{Name:key.(string)})
-	 //	return true
-	 //})
-	 items:=convertToMapItems(this.data)
-	 sort.Sort(items)
-	  ret:=make([]*models.NsModel,len(items))
-	 for index,item:=range items{
-		 ret[index]=&models.NsModel{Name:item.key}
-	 }
+//显示所有的 namespace
+func (this *NsMapStruct) ListAll() []*models.NsModel {
+
+	//this.data.Range(func(key, value interface{}) bool {
+	//ret=append(ret,&models.NsModel{Name:key.(string)})
+	//	return true
+	//})
+	items := convertToMapItems(this.data)
+	sort.Sort(items)
+	ret := make([]*models.NsModel, len(items))
+	for index, item := range items {
+		ret[index] = &models.NsModel{Name: item.key}
+	}
 
 	return ret
 }
@@ -225,13 +245,46 @@ func(this *NsMapStruct) ListAll()[]*models.NsModel{
 // event 事件map 相关
 // EventSet 集合 用来保存事件, 只保存最新的一条
 type EventMapStruct struct {
-	data sync.Map   // [key string] *v1.Event
+	data sync.Map // [key string] *v1.Event
 	// key=>namespace+"_"+kind+"_"+name 这里的name 不一定是pod ,这样确保唯一
 }
-func(this *EventMapStruct) GetMessage(ns string,kind string,name string) string{
-	key:=fmt.Sprintf("%s_%s_%s",ns,kind,name)
-	if v,ok:=this.data.Load(key);ok{
+
+func (this *EventMapStruct) GetMessage(ns string, kind string, name string) string {
+	key := fmt.Sprintf("%s_%s_%s", ns, kind, name)
+	if v, ok := this.data.Load(key); ok {
 		return v.(*corev1.Event).Message
 	}
 	return ""
+}
+
+//node map
+type NodeMapStruct struct {
+	data sync.Map // [nodename string] *v1.Node   注意里面不是切片
+}
+
+func (this *NodeMapStruct) Get(name string) *corev1.Node {
+	if node, ok := this.data.Load(name); ok {
+		return node.(*corev1.Node)
+	}
+	return nil
+}
+func (this *NodeMapStruct) Add(item *corev1.Node) {
+	//直接覆盖
+	this.data.Store(item.Name, item)
+}
+
+func (this *NodeMapStruct) Update(item *corev1.Node) bool {
+	this.data.Store(item.Name, item)
+	return true
+}
+func (this *NodeMapStruct) Delete(node *corev1.Node) {
+	this.data.Delete(node.Name)
+}
+func (this *NodeMapStruct) ListAll() []*corev1.Node {
+	ret := []*corev1.Node{}
+	this.data.Range(func(key, value interface{}) bool {
+		ret = append(ret, value.(*corev1.Node))
+		return true
+	})
+	return ret //返回空列表
 }

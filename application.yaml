@@ -1,0 +1,16 @@
+k8s:
+  nodes:
+    - name: izbp1hwjcyoz8hbc8cr77bz
+      ip: 47.99.200.30
+      user: root
+      pass: Hzy991220!
+
+    - name: node
+      ip: 47.111.188.80
+      user: root
+      pass: Hzy991220!
+
+  cluster-info:
+    endpoint: https://172.22.248.204:6443
+    cafile: ./test/certs/ca.crt
+    usercert: ./k8susers
